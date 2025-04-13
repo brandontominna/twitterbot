@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "npm start",
+    "healthcheckPath": "/api/status",
+    "healthcheckTimeout": 300
+  }
+} 

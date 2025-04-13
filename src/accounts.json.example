@@ -1,0 +1,8 @@
+[
+  {
+    "username": "example@email.com",
+    "password": "password_goes_here",
+    "handle": "twitter_handle",
+    "active": true
+  }
+] 

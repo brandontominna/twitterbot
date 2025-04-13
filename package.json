@@ -1,0 +1,30 @@
+{
+  "name": "twitterbot",
+  "version": "1.0.0",
+  "description": "Bot that logs into Twitter accounts and refreshes a target profile at random intervals",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test-bot": "node test-bot.js"
+  },
+  "engines": {
+    "node": ">=16.x"
+  },
+  "keywords": [
+    "twitter",
+    "bot",
+    "puppeteer",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "puppeteer": "^24.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
