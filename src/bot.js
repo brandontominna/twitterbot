@@ -111,8 +111,12 @@ class TwitterBot {
       // Print current URL for debugging
       console.log(`User:${this.account.handle} - Current URL after login check: ${this.page.url()}`);
       
-      // Go straight to target profile
-      console.log(`User:${this.account.handle} - Going directly to target profile URL...`);
+      // Initialize pinned post URL for reference
+      this.pinnedPostUrl = 'https://x.com/u235___/status/1905652172085203420';
+      console.log(`User:${this.account.handle} - Pinned post URL set to: ${this.pinnedPostUrl}`);
+      
+      // Go straight to target profile (main profile)
+      console.log(`User:${this.account.handle} - Going to main profile page...`);
       
       // Format profile URL correctly
       let profileUrl = this.targetProfile;
@@ -128,7 +132,7 @@ class TwitterBot {
       const finalUrl = this.page.url();
       console.log(`User:${this.account.handle} - Now on page: ${finalUrl}`);
       
-      // Start refresh cycle
+      // Start the profile and tweet interaction cycle
       this.startRefreshCycle();
       
       this.isRunning = true;
@@ -334,38 +338,110 @@ class TwitterBot {
   }
   
   startRefreshCycle() {
-    console.log(`User:${this.account.handle} - Starting refresh cycle (${process.env.MIN_REFRESH_TIME}-${process.env.MAX_REFRESH_TIME} seconds)`);
+    console.log(`User:${this.account.handle} - Starting interactive navigation cycle`);
     
     const refreshPage = async () => {
       try {
-        // Calculate random time for next refresh (15-20 seconds by default)
+        // Calculate random time for next refresh cycle
         const minTime = parseInt(process.env.MIN_REFRESH_TIME || 15);
         const maxTime = parseInt(process.env.MAX_REFRESH_TIME || 20);
         const nextRefresh = Math.floor(Math.random() * (maxTime - minTime + 1)) + minTime;
         
-        console.log(`User:${this.account.handle} - First refresh in ${nextRefresh} seconds`);
+        console.log(`User:${this.account.handle} - Next cycle in ${nextRefresh} seconds`);
         
-        // Set timeout for next refresh
+        // Set timeout for next refresh cycle
         this.refreshInterval = setTimeout(async () => {
           try {
-            // Perform the refresh
-            await this.page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
+            // Step 1: Navigate to main profile if not already there
+            const currentUrl = this.page.url();
+            const mainProfileUrl = this.targetProfile;
             
-            // Increment refresh count
-            this.refreshCount++;
-            console.log(`User:${this.account.handle} - Total refreshes: ${this.refreshCount}`);
+            if (!currentUrl.includes(mainProfileUrl) || currentUrl.includes('/status/')) {
+              console.log(`User:${this.account.handle} - Navigating to main profile: ${mainProfileUrl}`);
+              await this.page.goto(mainProfileUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+              
+              // Wait 2 seconds on main profile
+              console.log(`User:${this.account.handle} - Waiting on main profile...`);
+              await this.delay(2000);
+            }
             
-            // Set the next refresh
+            // Step 2: Find and click on the pinned post
+            try {
+              console.log(`User:${this.account.handle} - Looking for pinned post...`);
+              
+              // Try multiple selectors to find the pinned post
+              // First try to find the pinned post indicator text
+              const pinnedElement = await this.page.$x("//span[contains(text(), 'Pinned')]");
+              
+              if (pinnedElement && pinnedElement.length > 0) {
+                // Find the closest tweet container
+                console.log(`User:${this.account.handle} - Found pinned post indicator, clicking on the tweet...`);
+                
+                // Move up to find the article or closest clickable ancestor
+                const tweetContainer = await this.page.evaluateHandle(el => {
+                  let current = el;
+                  // Walk up the DOM tree until we find an article element
+                  while (current && current.tagName !== 'ARTICLE' && current.tagName !== 'DIV') {
+                    current = current.parentElement;
+                  }
+                  return current;
+                }, pinnedElement[0]);
+                
+                // Click on it
+                await tweetContainer.click();
+                console.log(`User:${this.account.handle} - Clicked on pinned post`);
+              } else {
+                // Alternative: Try to find first tweet on profile
+                console.log(`User:${this.account.handle} - No pinned indicator found, looking for first tweet...`);
+                
+                // Try to click on first article element (usually a tweet)
+                const articles = await this.page.$('article');
+                if (articles) {
+                  await articles.click();
+                  console.log(`User:${this.account.handle} - Clicked on first tweet`);
+                } else {
+                  // If all else fails, go to known pinned post URL directly
+                  console.log(`User:${this.account.handle} - No tweets found, going to pinned post URL directly`);
+                  await this.page.goto(this.pinnedPostUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+                }
+              }
+              
+              // Wait 2 seconds on the post page
+              console.log(`User:${this.account.handle} - Waiting on tweet page...`);
+              await this.delay(2000);
+              
+              // Step 3: Go back to main profile
+              console.log(`User:${this.account.handle} - Returning to main profile...`);
+              await this.page.goto(mainProfileUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+              
+              // Wait 2 seconds before completing the cycle
+              console.log(`User:${this.account.handle} - Waiting before next cycle...`);
+              await this.delay(2000);
+              
+              // Increment refresh count
+              this.refreshCount++;
+              console.log(`User:${this.account.handle} - Completed cycle #${this.refreshCount}`);
+              
+            } catch (clickError) {
+              console.error(`User:${this.account.handle} - Error clicking on pinned tweet:`, clickError);
+              // Try direct navigation as fallback
+              console.log(`User:${this.account.handle} - Falling back to direct navigation to pinned post`);
+              await this.page.goto(this.pinnedPostUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+              await this.delay(2000);
+              await this.page.goto(mainProfileUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+            }
+            
+            // Set the next refresh cycle
             refreshPage();
           } catch (error) {
-            console.error(`User:${this.account.handle} - Error during refresh:`, error);
+            console.error(`User:${this.account.handle} - Error during navigation cycle:`, error);
             
             // Try to recover from the error
             await this.recoverFromError();
           }
         }, nextRefresh * 1000);
       } catch (error) {
-        console.error(`User:${this.account.handle} - Error in refresh cycle:`, error);
+        console.error(`User:${this.account.handle} - Error setting up navigation cycle:`, error);
       }
     };
     
@@ -379,7 +455,8 @@ class TwitterBot {
       console.log(`User:${this.account.handle} - Recovery check - Current URL: ${this.page.url()}`);
       
       // If we're on a login screen or unexpected page, try to log in again and navigate back
-      if (!this.page.url().includes(this.targetProfile)) {
+      const currentUrl = this.page.url();
+      if (currentUrl.includes('login') || currentUrl.includes('flow/login')) {
         console.log(`User:${this.account.handle} - Session expired, logging in again`);
         
         // Login again
@@ -387,16 +464,22 @@ class TwitterBot {
         
         // Navigate back to profile
         console.log(`User:${this.account.handle} - Navigating back to profile`);
-        await this.navigateToProfile();
+        await this.page.goto(this.targetProfile, { waitUntil: 'networkidle2', timeout: 60000 });
         
-        // Restart refresh cycle
-        console.log(`User:${this.account.handle} - Restarting refresh cycle`);
+        // Restart navigation cycle
+        console.log(`User:${this.account.handle} - Restarting navigation cycle`);
         this.startRefreshCycle();
         
         return true;
       }
       
-      // If we're still on the profile, just restart the cycle
+      // If we're on any other unexpected page, go back to main profile
+      if (!currentUrl.includes(this.targetProfile) && !currentUrl.includes(this.pinnedPostUrl)) {
+        console.log(`User:${this.account.handle} - On unexpected page, returning to main profile`);
+        await this.page.goto(this.targetProfile, { waitUntil: 'networkidle2', timeout: 60000 });
+      }
+      
+      // Restart the navigation cycle
       this.startRefreshCycle();
       return true;
     } catch (error) {
